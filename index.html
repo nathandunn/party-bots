@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Party Bots — 5e party simulator</title>
+<meta name="description" content="Level-5 SRD 5.1 party combat simulator: which classes, mixes and AI personalities actually win.">
+<link rel="stylesheet" href="web/style.css">
+</head>
+<body>
+<header>
+  <a class="back" href="https://apps.precogsoftwareservices.com/">← Apps</a>
+  <h1>Party <span>Bots</span></h1>
+</header>
+<nav id="tabs">
+  <button data-tab="battle" class="on">Battle</button>
+  <button data-tab="matrix">Class matrix</button>
+  <button data-tab="comps">Comps</button>
+  <button data-tab="minds">Personalities</button>
+  <button data-tab="rules">Rules</button>
+</nav>
+<main>
+  <section id="battle">
+    <p class="lead">Two parties of level-5 adventurers (SRD 5.1, 2014 rules). Pick classes and how each one thinks, pick a battlefield, watch one fight, or run hundreds.</p>
+    <div class="teams">
+      <div class="card team blue"><h3>Blue party</h3><div id="teamA"></div><div class="row"><button data-add="A">+ member</button><select data-quick="A"></select></div></div>
+      <div class="card team red"><h3>Red party</h3><div id="teamB"></div><div class="row"><button data-add="B">+ member</button><select data-quick="B"></select></div></div>
+    </div>
+    <div class="card">
+      <div class="row">
+        <label>Map <select id="mapSel"></select></label>
+        <label>Seed <input id="seed" type="number" value="1" style="width:90px"></label>
+        <button id="fightBtn" class="primary">Fight</button>
+        <button id="sim200">Simulate ×200</button>
+        <button id="toTourney" title="Add both parties to the comp tournament">→ Comps</button>
+      </div>
+      <div class="muted" id="mapBlurb"></div>
+    </div>
+    <div class="card" id="replayCard" hidden>
+      <div class="board-wrap"><canvas id="board" width="960" height="640"></canvas></div>
+      <div class="controls">
+        <button id="pPlay">▶︎</button><button id="pStep">⏭</button>
+        <input type="range" id="pScrub" min="0" max="0" value="0">
+        <select id="pSpeed"><option value="1400">slow</option><option value="700" selected>normal</option><option value="250">fast</option></select>
+        <span class="muted" id="pRound"></span>
+      </div>
+      <div class="legend" id="boardLegend"></div>
+      <div class="log" id="log"></div>
+      <div id="fightStats"></div>
+    </div>
+    <div class="card" id="simCard" hidden></div>
+  </section>
+
+  <section id="matrix" hidden>
+    <p class="lead">Every class against every other class: parties of identical adventurers, same personality, sides swapped every other fight. Cell = row class's win rate. This is the "all monks vs all wizards" table.</p>
+    <div class="card">
+      <div class="row">
+        <label>Map <select id="mxMap"></select></label>
+        <label>Party size <select id="mxSize"><option>2</option><option>3</option><option selected>4</option><option>5</option></select></label>
+        <label>Fights per pair <select id="mxN"><option>10</option><option selected>30</option><option>100</option></select></label>
+        <label>Personality <select id="mxPers" class="persSel"></select></label>
+        <button id="mxRun" class="primary">Run</button>
+      </div>
+      <div class="progress"><i id="mxProg"></i></div>
+      <div class="muted" id="mxNote">"All maps" runs each battlefield and shows how the ranking moves with terrain.</div>
+    </div>
+    <div id="mxOut"></div>
+  </section>
+
+  <section id="comps" hidden>
+    <p class="lead">Round-robin tournament between whole parties. The 2014 design promise is that mixed parties beat any single class — this is where that gets tested.</p>
+    <div class="card">
+      <div class="row" id="compPresets"></div>
+      <div id="compList"></div>
+      <div class="row">
+        <label>Maps <select id="tMaps"><option value="open">Open Field</option><option value="all" selected>All maps</option></select></label>
+        <label>Fights per pairing <select id="tN"><option>6</option><option selected>12</option><option>30</option></select></label>
+        <button id="tRun" class="primary">Run tournament</button>
+      </div>
+      <div class="progress"><i id="tProg"></i></div>
+    </div>
+    <div id="tOut"></div>
+  </section>
+
+  <section id="minds" hidden>
+    <p class="lead">Same party, different minds. Personalities change targeting, positioning, resource spending, healing and how ruthless the party is with downed foes. Build your own, then pit them against each other.</p>
+    <div class="card">
+      <h3>Personality duel</h3>
+      <div class="row"><label>Party <select id="pdComp"></select></label>
+        <label>Map <select id="pdMap"></select></label>
+        <label>Fights per pairing <select id="pdN"><option>10</option><option selected>20</option><option>50</option></select></label>
+        <button id="pdRun" class="primary">Run</button></div>
+      <div class="muted">Every preset (and your custom ones) drives the same party; each pairing is fought on mirrored ground.</div>
+      <div class="progress"><i id="pdProg"></i></div>
+      <div id="pdOut"></div>
+    </div>
+    <div class="card">
+      <h3>Personality editor</h3>
+      <div class="row"><label>Start from <select id="edBase" class="persSel"></select></label><input id="edName" placeholder="Name" style="width:150px"><button id="edSave" class="primary">Save</button><button id="edDel">Delete</button></div>
+      <div class="sliders" id="edSliders"></div>
+      <div class="row"><label>Targets <select id="edTarget"></select></label></div>
+      <div class="muted">Custom personalities are stored in this browser and show up in every personality menu.</div>
+    </div>
+  </section>
+
+  <section id="rules" hidden>
+    <p class="lead">What is simulated, and where it bends the rules.</p>
+    <div id="rulesOut"></div>
+  </section>
+</main>
+<footer>
+  This work includes material taken from the System Reference Document 5.1 ("SRD 5.1") by Wizards of the Coast LLC and available at
+  <a href="https://dnd.wizards.com/resources/systems-reference-document">dnd.wizards.com/resources/systems-reference-document</a>.
+  The SRD 5.1 is licensed under the Creative Commons Attribution 4.0 International License available at
+  <a href="https://creativecommons.org/licenses/by/4.0/legalcode">creativecommons.org/licenses/by/4.0/legalcode</a>.
+  Not affiliated with or endorsed by Wizards of the Coast. · <a href="https://github.com/nathandunn/party-bots">Source</a>
+</footer>
+<script type="module" src="web/app.js"></script>
+</body>
+</html>
