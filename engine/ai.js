@@ -623,6 +623,8 @@ function runAction(b, c, best) {
     }
     case 'spell': {
       const sp = opt.sp;
+      // a held spell (moonbeam / call lightning) may have been lost to damage on the way here
+      if (opt.free && (!c.conc || c.conc.spell !== opt.id)) { c.cond.dodging = true; b.log(`${c.name} lost concentration and takes the Dodge action`); return; }
       if (t && t.team !== c.team && t.hp > 0) b.focus[c.team] = t.id;
       if (sp.kind === 'attack' || sp.kind === 'auto') {
         const rays = sp.kind === 'auto' ? sp.darts + (opt.lvl - 1) * (sp.upDarts || 0) : (sp.rays || 1) + (opt.lvl - sp.lvl) * (sp.upRays || 0);

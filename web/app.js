@@ -100,6 +100,31 @@ for (const side of ['A', 'B']) {
     q.value = ''; renderTeam(side);
   });
 }
+// behaviour autofill: one mind for the whole party, a random mix, or minds chosen by role
+const ROLE_MIND = { barbarian: 'berserker', fighter: 'berserker', paladin: 'guardian', monk: 'assassin', rogue: 'assassin', ranger: 'tactician', cleric: 'guardian', druid: 'guardian', bard: 'guardian', wizard: 'tactician', sorcerer: 'tactician', warlock: 'tactician' };
+function fillMindsSelect(side) {
+  const q = $(`[data-minds=${side}]`); q.innerHTML = '';
+  q.append(el('option', { value: '' }, 'Behaviour fill…'));
+  q.append(el('option', { value: 'role' }, 'By role (bruisers berserk, healers guard, casters plan, skirmishers assassinate)'));
+  q.append(el('option', { value: 'random' }, 'Random mix of minds'));
+  q.append(el('option', { value: 'cycle' }, 'One of each mind in turn'));
+  for (const p of allPers()) q.append(el('option', { value: 'all:' + p.id }, `Everyone: ${p.name}${PRESETS[p.id] ? '' : ' ★'}`));
+}
+for (const side of ['A', 'B']) {
+  fillMindsSelect(side);
+  const q = $(`[data-minds=${side}]`);
+  q.addEventListener('change', () => {
+    const v = q.value; if (!v) return;
+    const minds = allPers().map((p) => p.id);
+    state[side].forEach((m, i) => {
+      if (v === 'role') m.personality = ROLE_MIND[m.cls] || 'balanced';
+      else if (v === 'random') m.personality = minds[Math.floor(Math.random() * minds.length)];
+      else if (v === 'cycle') m.personality = minds[i % minds.length];
+      else m.personality = v.slice(4);
+    });
+    q.value = ''; renderTeam(side);
+  });
+}
 fillMapSelect($('#mapSel'));
 const showBlurb = () => ($('#mapBlurb').textContent = MAP_INFO[$('#mapSel').value].blurb);
 $('#mapSel').addEventListener('change', showBlurb);
@@ -303,7 +328,7 @@ $('#edDel').addEventListener('click', () => {
 function refreshPersSelects() {
   document.querySelectorAll('select.persSel').forEach((s) => fillPersSelect(s, s.value));
   $('#edBase').value = ed.base;
-  renderTeam('A'); renderTeam('B');
+  renderTeam('A'); renderTeam('B'); fillMindsSelect('A'); fillMindsSelect('B');
 }
 
 // ------------------------------------------------------------ rules

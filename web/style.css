@@ -34,6 +34,7 @@ select { max-width: 100%; }
 .team.blue h3 { color: var(--blue); } .team.red h3 { color: var(--red); }
 .member { display: grid; grid-template-columns: 1fr 1fr auto; gap: 6px; margin: 6px 0; }
 .member button { padding: 6px 9px; }
+.team .row select { flex: 1 1 140px; min-width: 0; }
 .muted { color: var(--dim); font-size: 13px; }
 .board-wrap { position: relative; width: 100%; }
 canvas#board { width: min(100%, calc((100vh - 170px) * 960 / 696)); margin: 0 auto; aspect-ratio: 960 / 696; display: block; border-radius: 10px; border: 1px solid var(--line); background: #1b1820; touch-action: manipulation; }

@@ -55,6 +55,23 @@ test('fuzz: random parties on every map finish without errors and with consisten
   }
 });
 
+test('big fuzz: 1200 random fights, every class and personality, all maps', () => {
+  const r = makeRng(2026);
+  for (let k = 0; k < 1200; k++) {
+    const party = () => Array.from({ length: 1 + r.int(6) }, () => ({ cls: r.pick(CLASS_IDS), personality: r.pick(PRESET_IDS) }));
+    const res = new Battle({ teams: [party(), party()], map: r.pick(MAP_IDS), seed: 1000 + k }).run();
+    assert.ok([-1, 0, 1].includes(res.winner));
+  }
+});
+
+test('regression: druid loses concentration before moving Moonbeam (Holy order vs Classic, forest)', () => {
+  // reported from the live site: "Cannot set properties of null (setting 'zone')"
+  const holy = ['paladin', 'cleric', 'bard', 'druid'].map((cls) => ({ cls }));
+  const classic = ['fighter', 'cleric', 'rogue', 'wizard'].map((cls) => ({ cls }));
+  const r = matchup(holy, classic, { map: 'forest', n: 20, seed: 61 });
+  assert.equal(r.winsA + r.winsB + r.draws, 20);
+});
+
 test('nobody stands in a wall or on another creature', () => {
   for (const map of MAP_IDS) {
     const b = new Battle({ teams: [mono('monk'), mono('barbarian')], map, seed: 3, record: true });
