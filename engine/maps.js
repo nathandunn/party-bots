@@ -84,23 +84,54 @@ export function getMap(id) {
   return m;
 }
 
-// spawn cells for a team (side 0 = left, 1 = right). roles front/back get different columns.
+// spawn cells for a team (side 0 = left, 1 = right). Members spread out over their home zone so one
+// area spell cannot catch the whole party on turn one. A small seeded search minimises, in order:
+// the most teammates a single 20-ft-radius burst could hit, then how close the closest pair stands.
+// Front-liners stand in the forward columns, everyone else at the back. Results are cached.
+const spawnCache = new Map();
 export function spawnCells(map, side, roles) {
-  const rowsOrder = [7, 8, 5, 10, 3, 12, 6, 9, 4, 11];
-  const used = new Set(); const out = [];
-  const fx = side === 0 ? map.spawn.front : W - 1 - map.spawn.front;
-  const bx = side === 0 ? map.spawn.back : W - 1 - map.spawn.back;
-  roles.forEach((role) => {
-    const xs = role === 'front' ? [fx, bx] : [bx, fx];
-    let placed = null;
-    for (const x of xs) {
-      for (const y of rowsOrder) {
-        const k = x + ',' + y;
-        if (!used.has(k) && !map.blocksMove(x, y)) { placed = [x, y]; used.add(k); break; }
-      }
-      if (placed) break;
-    }
-    out.push(placed);
+  const key = map.id + '|' + side + '|' + roles.join(',');
+  if (spawnCache.has(key)) return spawnCache.get(key).map((p) => [...p]);
+  const { front, back } = map.spawn;
+  const maxX = Math.min(front + 5, W / 2 - 2);
+  const mirror = (x) => (side === 0 ? x : W - 1 - x);
+  const allowed = roles.map((r) => {
+    const out = [];
+    const [x0, x1] = r === 'front' ? [front, maxX] : [Math.max(0, back - 1), back + 2];
+    for (let x = x0; x <= x1; x++) for (let y = 0; y < H; y++) if (!map.blocksMove(mirror(x), y)) out.push([mirror(x), y]);
+    return out;
   });
-  return out;
+  const R = 4.5; // fireball reach in cells (radius 4 + half a square)
+  const cover = (pts) => {
+    let worst = 1;
+    for (const c of pts) { // a burst catching k creatures can be centred near one of them; test midpoints too
+      for (const d of pts) {
+        const mx = (c[0] + d[0]) / 2, my = (c[1] + d[1]) / 2;
+        let k = 0; for (const p of pts) if (Math.hypot(p[0] - mx, p[1] - my) <= R) k++;
+        if (k > worst) worst = k;
+      }
+    }
+    return worst;
+  };
+  const minGap = (pts) => { let m = 99; for (let i = 0; i < pts.length; i++) for (let j = i + 1; j < pts.length; j++) m = Math.min(m, Math.hypot(pts[i][0] - pts[j][0], pts[i][1] - pts[j][1])); return m; };
+  const score = (pts) => {
+    const seen = new Set(pts.map((p) => p.join()));
+    if (seen.size < pts.length) return -1e9;
+    return -cover(pts) * 1000 + Math.min(minGap(pts), 14) * 10 - pts.reduce((s, p) => s + Math.abs(p[1] - (H - 1) / 2), 0) * 0.05;
+  };
+  let seed = 12345 + roles.length * 977 + side; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  let best = null, bestS = -Infinity;
+  for (let restart = 0; restart < 12; restart++) {
+    let cur = allowed.map((a) => a[Math.floor(rnd() * a.length)]);
+    let s = score(cur);
+    for (let it = 0; it < 400; it++) {
+      const i = Math.floor(rnd() * cur.length);
+      const cand = cur.slice(); cand[i] = allowed[i][Math.floor(rnd() * allowed[i].length)];
+      const cs = score(cand);
+      if (cs >= s) { cur = cand; s = cs; }
+    }
+    if (s > bestS) { bestS = s; best = cur; }
+  }
+  spawnCache.set(key, best);
+  return best.map((p) => [...p]);
 }
