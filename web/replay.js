@@ -208,18 +208,23 @@ export function createReplay(el) {
     const W = cv.width, H = cv.height;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = '#121016'; ctx.fillRect(0, 0, W, H);
-    // camera
-    const narrow = cv.clientWidth < 700;
-    const zt = zoomOn ? (narrow ? 2.2 : 1.6) : 1;
-    let tx = WW / 2, ty = WH / 2;
-    const f = R.frames[k];
-    if (zoomOn && f.actor != null && units[f.actor]) {
-      const [ax, ay] = unitScreen(units[f.actor], now);
-      tx = ax; ty = ay;
-      const live = sched.find((s) => s.done && s.e.t != null && s.at > clock - 600 && units[s.e.t]);
-      if (live) { const [bx, by] = unitScreen(units[live.e.t], now); tx = (ax + bx) / 2; ty = (ay + by) / 2; }
+    // camera: fit everyone who is not dead (with a margin), so nobody is ever off screen
+    let tx = WW / 2, ty = WH / 2, zt = 1;
+    if (zoomOn) {
+      let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+      for (const u of Object.values(units)) {
+        if (u.dead) continue;
+        const [ux, uy] = unitScreen(u, now);
+        x0 = Math.min(x0, ux); x1 = Math.max(x1, ux); y0 = Math.min(y0, uy); y1 = Math.max(y1, uy);
+      }
+      if (x1 >= x0) {
+        const pad = 70;                       // room for sprites, hp bars and floating numbers
+        const bw = Math.max(240, x1 - x0 + pad * 2), bh = Math.max(160, y1 - y0 + pad * 2 + 30);
+        zt = Math.max(1, Math.min(2.4, Math.min(WW / bw, WH / bh)));
+        tx = (x0 + x1) / 2; ty = (y0 + y1) / 2 - 12;
+      }
     }
-    const lerp = Math.min(1, dt / 220);
+    const lerp = Math.min(1, dt / 500);
     cam.z += (zt - cam.z) * lerp; cam.x += (tx - cam.x) * lerp; cam.y += (ty - cam.y) * lerp;
     const s = (W / WW) * cam.z;
     const hw = W / s / 2, hh = H / s / 2;
@@ -461,7 +466,7 @@ export function createReplay(el) {
     el.round.textContent = R.frames[n].round ? `Round ${R.frames[n].round}` : 'Start';
   });
   if (el.zoom) {
-    const label = () => (el.zoom.textContent = zoomOn ? '⤢ Whole map' : '⤡ Follow');
+    const label = () => (el.zoom.textContent = zoomOn ? '⤢ Whole map' : '⤡ Fit fighters');
     label();
     el.zoom.addEventListener('click', () => { zoomOn = !zoomOn; label(); });
   }
