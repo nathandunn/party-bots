@@ -158,6 +158,7 @@ export class Battle {
   // walk a path step by step: opportunity attacks, aura/zone triggers, stops if dropped
   walk(c, path, { disengage = false, forced = false } = {}) {
     let spent = 0;
+    const trail = [[c.x, c.y]];
     for (const ci of path) {
       if (!this.up(c)) break;
       const nx = ci % W, ny = (ci / W) | 0;
@@ -176,8 +177,16 @@ export class Battle {
       }
       if (!this.up(c) || (!forced && !this.canAct(c))) break;
       c.x = nx; c.y = ny;
+      trail.push([nx, ny]);
       this.ev({ k: 'step', id: c.id, x: nx, y: ny });
       this.zoneEnter(c);
+    }
+    // you may pass through an ally's space but never end there: back up to the last free square
+    while (trail.length > 1 && this.cs.some((o) => o !== c && !o.dead && o.x === c.x && o.y === c.y)) {
+      trail.pop();
+      const [bx, by] = trail[trail.length - 1];
+      c.x = bx; c.y = by;
+      this.ev({ k: 'step', id: c.id, x: bx, y: by });
     }
     if (!forced) c.turn.move -= spent;
   }

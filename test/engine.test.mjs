@@ -72,6 +72,23 @@ test('regression: druid loses concentration before moving Moonbeam (Holy order v
   assert.equal(r.winsA + r.winsB + r.draws, 20);
 });
 
+test('no two creatures ever share a square (400 random recorded fights)', () => {
+  const r = makeRng(9);
+  for (let k = 0; k < 400; k++) {
+    const party = () => Array.from({ length: 2 + r.int(5) }, () => ({ cls: r.pick(CLASS_IDS), personality: r.pick(PRESET_IDS) }));
+    const res = new Battle({ teams: [party(), party()], map: r.pick(MAP_IDS), seed: k + 1, record: true }).run();
+    for (const f of res.frames) {
+      const seen = new Set();
+      for (const u of f.units) {
+        if (u.dead) continue;
+        const key = u.x + ',' + u.y;
+        assert.ok(!seen.has(key), `fight ${k + 1} round ${f.round}: two creatures on ${key}`);
+        seen.add(key);
+      }
+    }
+  }
+});
+
 test('nobody stands in a wall or on another creature', () => {
   for (const map of MAP_IDS) {
     const b = new Battle({ teams: [mono('monk'), mono('barbarian')], map, seed: 3, record: true });
