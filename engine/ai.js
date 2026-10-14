@@ -517,7 +517,7 @@ function preActionBonus(b, c, A) {
   const T = c.turn;
   if (!T.bonus || !b.canAct(c)) return;
   if (c.s.feats.has('rage') && !c.raging && c.res.rage > 0 && b.enemiesOf(c).some((e) => b.dist(e, c) <= 1)) {
-    c.raging = 10; c.res.rage--; T.bonus = false; b.log(`${c.name} RAGES`); return;
+    c.raging = 10; c.res.rage--; T.bonus = false; b.log(`${c.name} RAGES`); b.ev({ k: 'rage', id: c.id }); return;
   }
   const bs = bonusSpellPlan(b, c, c.x, c.y);
   if (bs && bs.v > 3) { bs.run(); T.bonus = false; }
@@ -550,7 +550,7 @@ function postActionBonus(b, c) {
     const t = pickAdjacent(b, c); T.bonus = false;
     b.weaponAttack(c, t, w, { reckless: wantsReckless(c) }); return;
   }
-  if (c.s.feats.has('rage') && !c.raging && c.res.rage > 0 && adj.length) { c.raging = 10; c.res.rage--; T.bonus = false; b.log(`${c.name} RAGES`); return; }
+  if (c.s.feats.has('rage') && !c.raging && c.res.rage > 0 && adj.length) { c.raging = 10; c.res.rage--; T.bonus = false; b.log(`${c.name} RAGES`); b.ev({ k: 'rage', id: c.id }); return; }
   // spiritual weapon strike
   if (c.sw) {
     const near = enemies.filter((e) => cheb(e.x, e.y, c.sw.x, c.sw.y) <= 5).sort((p, q) => targetWeight(b, c, q) - targetWeight(b, c, p));
@@ -560,7 +560,7 @@ function postActionBonus(b, c) {
   const bs = bonusSpellPlan(b, c, c.x, c.y);
   if (bs && bs.v > 2) { bs.run(); T.bonus = false; return; }
   if (c.s.feats.has('secondWind') && c.res.secondWind > 0 && c.hp < c.maxHp * (0.35 + P.caution * 0.25)) {
-    c.res.secondWind--; T.bonus = false; const h = b.rng.die(10) + 5; b.heal(c, c, h); b.log(`${c.name} Second Wind +${h}`); return;
+    c.res.secondWind--; T.bonus = false; const h = b.rng.die(10) + 5; b.ev({ k: 'heal', a: c.id, t: c.id, spell: 'secondWind' }); b.heal(c, c, h); b.log(`${c.name} Second Wind +${h}`); return;
   }
   if (c.s.feats.has('bardicInspiration') && c.res.bi > 1) {
     const a = b.alliesOf(c, false).filter((a) => !a.cond.inspired && b.dist(a, c) <= 12).sort((p, q) => q.dpr - p.dpr)[0];
@@ -650,10 +650,10 @@ function runAction(b, c, best) {
     }
     case 'layOnHands': {
       const amt = Math.min(c.res.layOnHands, res.amt); c.res.layOnHands -= amt;
-      b.log(`${c.name} Lay on Hands → ${t.name} +${amt}`); b.heal(c, t, amt); return;
+      b.log(`${c.name} Lay on Hands → ${t.name} +${amt}`); b.ev({ k: 'heal', a: c.id, t: t.id, spell: 'layOnHands' }); b.heal(c, t, amt); return;
     }
     case 'preserveLife': {
-      c.res.channel--; let pool = 25; b.log(`${c.name} Channel Divinity: Preserve Life`);
+      c.res.channel--; let pool = 25; b.log(`${c.name} Channel Divinity: Preserve Life`); b.ev({ k: 'cast', a: c.id, spell: 'preserveLife' });
       const allies = b.cs.filter((a) => a.team === c.team && !a.dead && b.dist(a, c) <= 6).sort((p, q) => p.hp / p.maxHp - q.hp / q.maxHp);
       for (const a of allies) { const amt = Math.min(pool, Math.max(0, Math.floor(a.maxHp / 2) - a.hp)); if (amt > 0) { b.heal(c, a, amt); pool -= amt; } }
       return;

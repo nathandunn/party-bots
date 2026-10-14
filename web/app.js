@@ -1,3 +1,4 @@
+import { createReplay } from './replay.js';
 import { Battle, CLASSES, CLASS_IDS, buildSheet, SPELLS, MAP_IDS, MAP_INFO, getMap, PRESETS, PRESET_IDS, TRAITS, TARGET_MODES } from '../engine/index.js';
 
 // ------------------------------------------------------------ tiny DOM helpers
@@ -144,108 +145,15 @@ function renderMatchup(card, r) {
 }
 
 // ------------------------------------------------------------ replay
-const replay = (() => {
-  const cv = $('#board'), ctx = cv.getContext('2d');
-  const CELL = 40;
-  let R = null, i = 0, playing = false, timer = null, anim = null;
-  const scrub = $('#pScrub');
-
-  function terrain(map) {
-    for (let y = 0; y < map.h; y++) for (let x = 0; x < map.w; x++) {
-      const ch = map.cells[y][x];
-      const px = x * CELL, py = y * CELL;
-      ctx.fillStyle = (x + y) % 2 ? '#211d27' : '#1e1a24'; ctx.fillRect(px, py, CELL, CELL);
-      if (ch === '#') { ctx.fillStyle = '#4a4352'; ctx.fillRect(px, py, CELL, CELL); ctx.strokeStyle = '#5d5566'; ctx.strokeRect(px + 2, py + 2, CELL - 4, CELL - 4); }
-      if (ch === 'T') { ctx.fillStyle = '#2f5a35'; ctx.beginPath(); ctx.arc(px + 20, py + 20, 15, 0, 7); ctx.fill(); ctx.fillStyle = '#3d7445'; ctx.beginPath(); ctx.arc(px + 16, py + 16, 7, 0, 7); ctx.fill(); }
-      if (ch === '+') { ctx.fillStyle = '#5e4a35'; ctx.fillRect(px + 4, py + 14, CELL - 8, 12); }
-      if (ch === '"') { ctx.fillStyle = '#34452f'; for (let k = 0; k < 5; k++) ctx.fillRect(px + 5 + k * 7, py + 10 + (k % 2) * 12, 3, 9); }
-    }
-  }
-  function unitPos(f, id) { return f.units.find((u) => u.id === id); }
-  function draw(t = 1) {
-    if (!R) return;
-    const f = R.frames[i], prev = R.frames[Math.max(0, i - 1)];
-    const map = getMap(R.map);
-    ctx.clearRect(0, 0, cv.width, cv.height);
-    terrain(map);
-    for (const z of f.auras) { ctx.fillStyle = 'rgba(217,164,65,.10)'; ctx.fillRect((z.x - z.r) * CELL, (z.y - z.r) * CELL, (2 * z.r + 1) * CELL, (2 * z.r + 1) * CELL); }
-    for (const z of f.zones) { ctx.fillStyle = 'rgba(235,235,190,.18)'; ctx.fillRect((z.x - z.r) * CELL, (z.y - z.r) * CELL, (2 * z.r + 1) * CELL, (2 * z.r + 1) * CELL); }
-    for (const s of f.sw) { ctx.fillStyle = TEAM_COL[s.team]; ctx.save(); ctx.translate(s.x * CELL + 20, s.y * CELL + 20); ctx.rotate(Math.PI / 4); ctx.fillRect(-6, -6, 12, 12); ctx.restore(); }
-    // units, interpolated from previous frame
-    for (const u of f.units) {
-      const p = unitPos(prev, u.id) || u;
-      const x = (p.x + (u.x - p.x) * t) * CELL + 20, y = (p.y + (u.y - p.y) * t) * CELL + 20;
-      const c = R.byId[u.id];
-      const col = TEAM_COL[c.team];
-      ctx.globalAlpha = u.dead ? 0.35 : u.hp === 0 ? 0.55 : 1;
-      if (f.actor === u.id) { ctx.strokeStyle = '#d9a441'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(x, y, 19, 0, 7); ctx.stroke(); }
-      ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x, y, 15, 0, 7); ctx.fill();
-      if (u.raging) { ctx.strokeStyle = '#ff6a3d'; ctx.lineWidth = 2; ctx.stroke(); }
-      if (u.conc) { ctx.setLineDash([3, 3]); ctx.strokeStyle = '#f2d27a'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(x, y, 17.5, 0, 7); ctx.stroke(); ctx.setLineDash([]); }
-      ctx.fillStyle = '#fff'; ctx.font = 'bold 13px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(u.dead ? '✕' : ABBR[c.cls], x, y + 1);
-      // hp bar
-      const fr = Math.max(0, u.hp / c.maxHp);
-      ctx.fillStyle = '#000a'; ctx.fillRect(x - 16, y + 17, 32, 4);
-      ctx.fillStyle = fr > 0.5 ? '#6fbf73' : fr > 0.25 ? '#d9a441' : '#e0574f'; ctx.fillRect(x - 16, y + 17, 32 * fr, 4);
-      const tags = u.cond.filter((k) => ['stunned', 'paralyzed', 'hypnotized', 'restrained', 'prone', 'hasted', 'blessed', 'faerie', 'hidden'].includes(k));
-      if (tags.length) { ctx.font = '10px system-ui'; ctx.fillStyle = '#f2d27a'; ctx.fillText(tags.map((k) => COND_GLYPH[k]).join(''), x, y - 22); }
-      ctx.globalAlpha = 1;
-    }
-    // effects of this frame
-    if (t >= 0.6) for (const e of f.fx || []) {
-      const a = e.a != null ? unitPos(f, e.a) : null, b = e.t != null ? unitPos(f, e.t) : null;
-      if (e.k === 'area') {
-        const col = e.spell === 'fireball' ? 'rgba(255,120,40,.35)' : e.spell === 'hypnoticPattern' ? 'rgba(200,120,255,.3)' : e.spell === 'callLightning' ? 'rgba(140,200,255,.35)' : 'rgba(255,255,255,.18)';
-        ctx.fillStyle = col;
-        if (e.round) { ctx.beginPath(); ctx.arc(e.x * CELL + 20, e.y * CELL + 20, (e.r + 0.5) * CELL, 0, 7); ctx.fill(); }
-        else ctx.fillRect((e.x - e.r) * CELL, (e.y - e.r) * CELL, (2 * e.r + 1) * CELL, (2 * e.r + 1) * CELL);
-      } else if (a && b) {
-        ctx.strokeStyle = e.k === 'heal' ? '#6fbf73' : e.hit ? (e.k === 'bolt' ? '#ffb347' : '#fff') : '#fff6';
-        ctx.lineWidth = e.k === 'swing' ? 3 : 1.5; ctx.setLineDash(e.hit || e.k === 'heal' ? [] : [4, 4]);
-        ctx.beginPath(); ctx.moveTo(a.x * CELL + 20, a.y * CELL + 20); ctx.lineTo(b.x * CELL + 20, b.y * CELL + 20); ctx.stroke(); ctx.setLineDash([]);
-      }
-    }
-    $('#pRound').textContent = f.round ? `Round ${f.round}` : 'Start';
-  }
-  const COND_GLYPH = { stunned: '★', paralyzed: '❄', hypnotized: '◎', restrained: '⌇', prone: '↓', hasted: '»', blessed: '✚', faerie: '✧', hidden: '◌' };
-  $('#boardLegend').innerHTML = Object.entries(COND_GLYPH).map(([k, g]) => `<span style="--c:transparent">${g} ${k}</span>`).join('') + '<span style="--c:#f2d27a">concentrating (dashed ring)</span>';
-
-  function logTo(n) {
-    const box = $('#log'); box.innerHTML = '';
-    for (let k = Math.max(0, n - 40); k <= n; k++) for (const line of R.frames[k].text) box.append(el('div', { class: k === n ? 'cur' : 'old' }, line));
-    box.scrollTop = box.scrollHeight;
-  }
-  function go(n, animate) {
-    i = Math.max(0, Math.min(R.frames.length - 1, n)); scrub.value = i; logTo(i);
-    cancelAnimationFrame(anim);
-    if (!animate) return draw(1);
-    const t0 = performance.now(), dur = Math.min(450, +$('#pSpeed').value * 0.6);
-    const step = (now) => { const t = Math.min(1, (now - t0) / dur); draw(t); if (t < 1) anim = requestAnimationFrame(step); };
-    anim = requestAnimationFrame(step);
-  }
-  function tick() {
-    if (!playing) return;
-    if (i >= R.frames.length - 1) { stop(); return; }
-    // skip frames where nothing happened
-    let n = i + 1; while (n < R.frames.length - 1 && !R.frames[n].text.length) n++;
-    go(n, true);
-    timer = setTimeout(tick, +$('#pSpeed').value);
-  }
-  function stop() { playing = false; clearTimeout(timer); $('#pPlay').textContent = '▶︎'; }
-  $('#pPlay').addEventListener('click', () => { if (playing) return stop(); if (i >= R.frames.length - 1) go(0); playing = true; $('#pPlay').textContent = '❚❚'; tick(); });
-  $('#pStep').addEventListener('click', () => { stop(); go(i + 1, true); });
-  scrub.addEventListener('input', () => { stop(); go(+scrub.value); });
-  return {
-    load(r) {
-      stop(); R = r; R.byId = Object.fromEntries(r.units.map((u) => [u.id, u]));
-      $('#replayCard').hidden = false; scrub.max = r.frames.length - 1; go(0);
-      fightStats(r);
-      playing = true; $('#pPlay').textContent = '❚❚'; tick();
-      $('#replayCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
-    },
-  };
-})();
+const player = createReplay({ canvas: $('#board'), play: $('#pPlay'), step: $('#pStep'), scrub: $('#pScrub'), speed: $('#pSpeed'), round: $('#pRound'), log: $('#log'), zoom: $('#pZoom') });
+const replay = {
+  load(r) {
+    $('#replayCard').hidden = false;
+    player.load(r);
+    fightStats(r);
+    $('#replayCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  },
+};
 
 function fightStats(r) {
   const box = $('#fightStats'); box.innerHTML = '';

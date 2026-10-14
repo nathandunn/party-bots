@@ -73,6 +73,7 @@ export class Battle {
 
   // ---------- logging ----------
   log(msg) { if (this.record) this.lines.push(msg); }
+  ev(o) { if (this.record) this.fx.push(o); }
   snapshot(actor) {
     if (!this.record) return;
     this.frames.push({
@@ -175,6 +176,7 @@ export class Battle {
       }
       if (!this.up(c) || (!forced && !this.canAct(c))) break;
       c.x = nx; c.y = ny;
+      this.ev({ k: 'step', id: c.id, x: nx, y: ny });
       this.zoneEnter(c);
     }
     if (!forced) c.turn.move -= spent;
@@ -190,7 +192,7 @@ export class Battle {
     if (from[0] !== c.x || from[1] !== c.y) this.log(`${c.name} moves (${from}) → (${c.x},${c.y})`);
   }
 
-  teleport(c, x, y) { this.log(`${c.name} mists to (${x},${y})`); c.x = x; c.y = y; this.zoneEnter(c); }
+  teleport(c, x, y) { this.log(`${c.name} mists to (${x},${y})`); c.x = x; c.y = y; this.ev({ k: 'blink', id: c.id, x, y }); this.zoneEnter(c); }
 
   push(src, t, cells) {
     const dx = Math.sign(t.x - src.x), dy = Math.sign(t.y - src.y);
@@ -198,6 +200,7 @@ export class Battle {
       const nx = t.x + dx, ny = t.y + dy;
       if (this.map.blocksMove(nx, ny) || this.at(nx, ny)) break;
       t.x = nx; t.y = ny;
+      this.ev({ k: 'step', id: t.id, x: nx, y: ny, shove: true });
     }
   }
 
@@ -288,6 +291,7 @@ export class Battle {
     if (t.dead || amt <= 0) return 0;
     if (t.hp === 0) { // hitting a downed creature: failed death saves
       t.ds.f += crit ? 2 : 1;
+      this.ev({ k: 'dmg', t: t.id, amt: 0, hp: 0, crit, fail: t.ds.f });
       this.log(`  ${t.name} (down) takes a hit: ${t.ds.f} failed saves`);
       if (t.ds.f >= 3) this.kill(t, a);
       return 0;
@@ -310,6 +314,7 @@ export class Battle {
     const before = t.hp;
     t.hp = Math.max(0, t.hp - amt);
     a.st.dmg += before - t.hp; t.st.taken += before - t.hp;
+    this.ev({ k: 'dmg', t: t.id, amt: dealt, hp: t.hp, temp: t.temp, crit });
     if (t.cond.hypnotized) { delete t.cond.hypnotized; }
     if (t.hp === 0) {
       if (amt - before >= t.maxHp) { this.kill(t, a); return dealt; }
@@ -328,6 +333,7 @@ export class Battle {
     if (t.conc) this.breakConc(t);
     if (t.raging) t.raging = 0;
     this.log(`  ${t.name} drops!`);
+    this.ev({ k: 'down', id: t.id });
     if (a && a.s.feats.has('darkOnesBlessing') && a.team !== t.team) {
       const th = a.s.mods.cha + 5; if (th > a.temp) a.temp = th;
     }
@@ -338,6 +344,7 @@ export class Battle {
     if (a && a.team !== t.team) a.st.kills++;
     t.sw = null;
     this.log(`  ${t.name} dies.`);
+    this.ev({ k: 'dead', id: t.id });
   }
 
   heal(src, t, amt) {
@@ -346,6 +353,7 @@ export class Battle {
     const before = t.hp;
     t.hp = Math.min(t.maxHp, t.hp + amt);
     src.st.heal += t.hp - before;
+    this.ev({ k: 'healed', t: t.id, amt: t.hp - before, hp: t.hp, up: wasDown && t.hp > 0 });
     if (wasDown && t.hp > 0) { t.ds = { s: 0, f: 0 }; t.stable = false; t.st.revived++; this.log(`  ${t.name} is back up (${t.hp} hp)`); }
   }
 
@@ -400,6 +408,7 @@ export class Battle {
     let dmg = this.rng.dice(n, sp.dice[1]);
     const ok = this.save(t, sp.abil, src.s.spellDC);
     if (ok) dmg = Math.floor(dmg / 2);
+    this.ev({ k: 'aura', a: src.id, t: t.id, spell: src.conc.spell });
     this.log(`  ${t.name} is caught by ${sp.name}: ${dmg}`);
     this.damage(src, t, dmg, sp.type);
   }

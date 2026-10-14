@@ -37,14 +37,15 @@
       <div class="muted" id="mapBlurb"></div>
     </div>
     <div class="card" id="replayCard" hidden>
-      <div class="board-wrap"><canvas id="board" width="960" height="640"></canvas></div>
+      <div class="board-wrap"><canvas id="board"></canvas></div>
       <div class="controls">
-        <button id="pPlay">▶︎</button><button id="pStep">⏭</button>
+        <button id="pPlay">▶︎</button><button id="pStep" title="Play one turn">⏭</button>
         <input type="range" id="pScrub" min="0" max="0" value="0">
-        <select id="pSpeed"><option value="1400">slow</option><option value="700" selected>normal</option><option value="250">fast</option></select>
+        <select id="pSpeed"><option value="0.5">slow</option><option value="1" selected>normal</option><option value="2">fast</option><option value="4">very fast</option></select>
+        <button id="pZoom"></button>
         <span class="muted" id="pRound"></span>
       </div>
-      <div class="legend" id="boardLegend"></div>
+      <div class="legend">★ stunned · chains paralyzed · spiral entranced · vines restrained · halo blessed · speed lines hasted · gold pip = concentrating · red glow = raging</div>
       <div class="log" id="log"></div>
       <div id="fightStats"></div>
     </div>

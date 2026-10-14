@@ -29,7 +29,7 @@ P.weaponAttack = function (a, t, w, opts = {}) {
   const advPre = this.advOnAttack(a, t, { melee, ranged: !!w.ranged, reckless });
   const r = this.attackRoll(a, t, { bonus: w.hit, melee, ranged: !!w.ranged, critOn: a.s.critOn, reckless, weaponRanged: !!w.ranged });
   a.turn && (a.turn.attacked = true);
-  if (this.record) this.fx.push({ k: melee ? 'swing' : 'shot', a: a.id, t: t.id, hit: r.hit });
+  this.ev({ k: melee ? 'swing' : 'shot', a: a.id, t: t.id, hit: r.hit, crit: r.crit, w: w.id });
   if (!r.hit) { this.log(`  ${a.name} ${w.name} → ${t.name}: miss`); return { hit: false }; }
   const parts = [];
   let base = this.rollWeaponDice(w, r.crit) + (opts.noMod ? 0 : w.dmgBonus);
@@ -95,6 +95,7 @@ P.cast = function (c, id, o = {}) {
   const up = lvl - sp.lvl;
   const dc = c.s.spellDC;
   if (sp.conc && !o.free) this.startConc(c, id, { lvl });
+  this.ev({ k: 'cast', a: c.id, spell: id, t: o.target ? o.target.id : (o.targets && o.targets[0] ? o.targets[0].id : null) });
   const label = `${c.name} casts ${sp.name}${sp.lvl && up > 0 ? ` (L${lvl})` : ''}`;
 
   switch (sp.kind) {
@@ -107,7 +108,7 @@ P.cast = function (c, id, o = {}) {
         if (!t || t.dead || (t.hp === 0 && t !== o.target)) t = this.fallbackTarget(c, sp.range);
         if (!t) continue;
         const r = this.attackRoll(c, t, { bonus: c.s.spellHit, spell: true });
-        if (this.record) this.fx.push({ k: 'bolt', a: c.id, t: t.id, hit: r.hit, spell: id });
+        this.ev({ k: 'bolt', a: c.id, t: t.id, hit: r.hit, crit: r.crit, spell: id });
         if (!r.hit) { this.log(`  → ${t.name}: miss`); continue; }
         const parts = [[this.rng.dice(n * (r.crit ? 2 : 1), sp.dice[1]) + (sp.addMod ? c.s.castMod : 0), sp.type]];
         if (c.conc && c.conc.mark === t.id && c.conc.spell === 'hex') parts.push([this.rng.dice(r.crit ? 2 : 1, 6), 'necrotic']);
@@ -132,7 +133,7 @@ P.cast = function (c, id, o = {}) {
           this.log(`  ${t.name} casts Shield — the missiles fizzle`); continue;
         }
         this.log(`  → ${t.name}: ${d}`);
-        if (this.record) this.fx.push({ k: 'bolt', a: c.id, t: t.id, hit: true, spell: id });
+        this.ev({ k: 'bolt', a: c.id, t: t.id, hit: true, spell: id });
         this.damage(c, t, d, sp.type);
       }
       break;
@@ -147,12 +148,12 @@ P.cast = function (c, id, o = {}) {
         if (c.s.feats.has('sculptSpells')) targets = targets.filter((t) => t.team !== c.team);
         if (sp.recast) c.conc && (c.conc.strike = true);
         this.log(`${label} at (${x},${y})`);
-        if (this.record) this.fx.push({ k: 'area', x, y, r: sp.area.r, round: !!sp.area.round, spell: id, team: c.team });
+        this.ev({ k: 'area', a: c.id, x, y, r: sp.area.r, round: !!sp.area.round, spell: id, team: c.team });
       } else {
         const max = (sp.targets || 1) + up * (sp.upTargets || 0);
         targets = (o.targets || [o.target]).filter(Boolean).slice(0, max);
         this.log(`${label} → ${targets.map((t) => t.name).join(', ')}`);
-        if (this.record) for (const t of targets) this.fx.push({ k: 'bolt', a: c.id, t: t.id, hit: true, spell: id });
+        for (const t of targets) this.ev({ k: 'bolt', a: c.id, t: t.id, hit: true, spell: id });
       }
       const n = sp.dice ? sp.dice[0] + up * (sp.upDice || 0) : 0;
       const dmgRoll = sp.dice ? this.rng.dice(n, sp.dice[1]) : 0; // area spells: one roll for everyone
@@ -165,8 +166,9 @@ P.cast = function (c, id, o = {}) {
           const d = sp.area ? dmgRoll : this.rng.dice(n, sp.dice[1]);
           const amt = ok ? (sp.half ? Math.floor(d / 2) : 0) : d;
           this.log(`  ${t.name} ${ok ? 'saves' : 'fails'}${amt ? ': ' + amt : ''}`);
+          if (!amt) this.ev({ k: 'saved', t: t.id });
           if (amt) this.damage(c, t, amt, sp.type);
-        } else this.log(`  ${t.name} ${ok ? 'saves' : 'fails'}`);
+        } else { this.log(`  ${t.name} ${ok ? 'saves' : 'fails'}`); this.ev({ k: ok ? 'saved' : 'cond', t: t.id, cond: sp.cond, spell: id }); }
         if (!ok && this.up(t)) {
           affected++;
           if (sp.push) this.push(c, t, sp.push);
@@ -182,7 +184,7 @@ P.cast = function (c, id, o = {}) {
       const ts = (o.targets || [o.target]).filter(Boolean).slice(0, sp.targets || 1);
       const n = sp.dice[0] + up * (sp.upDice || 0);
       this.log(`${label} → ${ts.map((t) => t.name).join(', ')}`);
-      if (this.record) for (const t of ts) this.fx.push({ k: 'heal', a: c.id, t: t.id });
+      for (const t of ts) this.ev({ k: 'heal', a: c.id, t: t.id, spell: id });
       for (const t of ts) {
         let amt = this.rng.dice(n, sp.dice[1]) + c.s.castMod;
         if (c.s.feats.has('discipleOfLife')) amt += 2 + lvl;
@@ -228,6 +230,7 @@ P.spiritStrike = function (c, t) {
   // move up to 20 ft next to the target
   sw.x = t.x + (c.x > t.x ? 1 : c.x < t.x ? -1 : 0); sw.y = t.y + (c.y > t.y ? 1 : c.y < t.y ? -1 : 0);
   const r = this.attackRoll(c, t, { bonus: c.s.spellHit, melee: true, spell: true });
+  this.ev({ k: 'spirit', a: c.id, t: t.id, hit: r.hit, x: sw.x, y: sw.y });
   if (!r.hit) { this.log(`  Spiritual Weapon → ${t.name}: miss`); return; }
   const d = this.rng.dice(r.crit ? 2 : 1, 8) + c.s.castMod;
   this.log(`  Spiritual Weapon → ${t.name}: ${d}`);
