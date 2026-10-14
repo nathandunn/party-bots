@@ -13,6 +13,7 @@ header h1 span { color: var(--gold); }
 header .back { font-size: 13px; color: var(--dim); text-decoration: none; }
 nav { display: flex; gap: 4px; overflow-x: auto; padding: 8px 12px; border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: 45px; z-index: 4; }
 nav button { flex: none; }
+#replayCard { scroll-margin-top: 104px; }
 main { max-width: 1100px; margin: 0 auto; padding: 14px 16px 60px; }
 section[hidden] { display: none !important; }
 h2 { font-family: var(--font); font-weight: normal; font-size: 22px; margin: 6px 0 10px; }
@@ -35,7 +36,7 @@ select { max-width: 100%; }
 .member button { padding: 6px 9px; }
 .muted { color: var(--dim); font-size: 13px; }
 .board-wrap { position: relative; width: 100%; }
-canvas#board { width: 100%; aspect-ratio: 3 / 2; display: block; border-radius: 10px; border: 1px solid var(--line); background: #1b1820; touch-action: manipulation; }
+canvas#board { width: min(100%, calc((100vh - 170px) * 960 / 696)); margin: 0 auto; aspect-ratio: 960 / 696; display: block; border-radius: 10px; border: 1px solid var(--line); background: #1b1820; touch-action: manipulation; }
 .controls { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin: 8px 0; }
 .controls input[type=range] { flex: 1; min-width: 120px; padding: 0; }
 .log { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12.5px; background: #120f16; border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; max-height: 260px; overflow: auto; white-space: pre-wrap; line-height: 1.45; }

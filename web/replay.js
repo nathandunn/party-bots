@@ -4,6 +4,8 @@ import { drawCharacter, SPELL_COL } from './sprites.js';
 import { getMap } from '../engine/index.js';
 
 const CELL = 40, WW = 960, WH = 640;
+// the view keeps a margin above the top row (heads, hp bars, floating numbers) and a little below the bottom
+const TOP = 44, BOT = 12, VH = WH + TOP + BOT;
 const RANGED_W = new Set(['longbow', 'shortbow', 'lightxbow', 'javelin', 'dart']);
 const BOW_W = new Set(['longbow', 'shortbow', 'lightxbow']);
 const PROJECTILE_SPELLS = new Set(['fireBolt', 'produceFlame', 'magicMissile', 'scorchingRay', 'guidingBolt', 'eldritchBlast']);
@@ -220,7 +222,7 @@ export function createReplay(el) {
       if (x1 >= x0) {
         const pad = 70;                       // room for sprites, hp bars and floating numbers
         const bw = Math.max(240, x1 - x0 + pad * 2), bh = Math.max(160, y1 - y0 + pad * 2 + 30);
-        zt = Math.max(1, Math.min(2.4, Math.min(WW / bw, WH / bh)));
+        zt = Math.max(1, Math.min(2.4, Math.min(WW / bw, VH / bh)));
         tx = (x0 + x1) / 2; ty = (y0 + y1) / 2 - 12;
       }
     }
@@ -228,11 +230,16 @@ export function createReplay(el) {
     cam.z += (zt - cam.z) * lerp; cam.x += (tx - cam.x) * lerp; cam.y += (ty - cam.y) * lerp;
     const s = (W / WW) * cam.z;
     const hw = W / s / 2, hh = H / s / 2;
-    const cx = Math.max(hw, Math.min(WW - hw, cam.x)), cy = Math.max(hh, Math.min(WH - hh, cam.y));
+    const cx = Math.max(hw, Math.min(WW - hw, cam.x));
+    const cy = hh * 2 >= VH ? (WH + BOT - TOP) / 2 : Math.max(-TOP + hh, Math.min(WH + BOT - hh, cam.y));
     ctx.setTransform(s, 0, 0, s, W / 2 - cx * s, H / 2 - cy * s);
 
     const terr = terrainCanvas(R.map);
     ctx.drawImage(terr, 0, 0, WW, WH);
+    // margins above and below the map: continue the ground, dimmed, so heads at the edge have room
+    ctx.drawImage(terr, 0, 0, WW * 2, TOP * 2, 0, -TOP, WW, TOP);
+    ctx.drawImage(terr, 0, WH * 2 - BOT * 2, WW * 2, BOT * 2, 0, WH, WW, BOT);
+    ctx.fillStyle = 'rgba(10,8,14,.45)'; ctx.fillRect(0, -TOP, WW, TOP); ctx.fillRect(0, WH, WW, BOT);
 
     // persistent spell areas
     for (const z of persistent.zones) {
@@ -442,7 +449,7 @@ export function createReplay(el) {
   function resize() {
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     const w = cv.clientWidth || 360;
-    cv.width = Math.round(w * dpr); cv.height = Math.round(w * dpr * (WH / WW));
+    cv.width = Math.round(w * dpr); cv.height = Math.round(w * dpr * (VH / WW));
   }
   window.addEventListener('resize', resize);
 
@@ -478,7 +485,7 @@ export function createReplay(el) {
       resize(); terrainCanvas(r.map);
       el.scrub.max = r.frames.length - 1;
       syncFrame(0); for (const u of Object.values(units)) u.lying = u.lyingTarget;
-      cam = { x: WW / 2, y: WH / 2, z: 1 };
+      cam = { x: WW / 2, y: (WH + BOT - TOP) / 2, z: 1 };
       startFrame(Math.min(1, r.frames.length - 1));
       playing = true; single = false; el.play.textContent = '❚❚';
       if (!raf) raf = requestAnimationFrame(loop);
